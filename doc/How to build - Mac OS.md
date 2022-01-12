@@ -15,7 +15,7 @@ XCode is available through Apple's App Store, the other three tools are availabl
 
 You have to gitclone  the repository
 ```
-git clone https://github.com/slic3r/Slic3r.git
+git clone https://github.com/supermerill/SuperSlicer.git
 ```
 
 and then you have to clone the profiles submodules
@@ -24,6 +24,12 @@ and then you have to clone the profiles submodules
 cd resources/profiles
 git submodule update
 ```
+
+## How to build, the easy way
+
+After cloning, execute `./BuildMacOS.sh -i`
+The executable & dmg should be somewhere in the build directory. 
+
 ### How to build
 
 Just use the `BuildMacOS.sh` script (use the `-h` option to get the options available, and how to use them)

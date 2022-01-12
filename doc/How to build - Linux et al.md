@@ -1,7 +1,7 @@
 
 # Building Slic3r on UNIX/Linux
 
-Please understand that Slic3r (& PrusaSlicer) team cannot support compilation on all possible Linux distros. Namely, we cannot help troubleshoot OpenGL driver issues or dependency issues if compiled against distro provided libraries. **We can only support Slic3r statically linked against the dependencies compiled with the `deps` scripts**, the same way we compile Slic3r for our binary builds.
+Please understand that I can't support compilation on all possible Linux distros. Namely, we cannot help troubleshoot OpenGL driver issues or dependency issues if compiled against distro provided libraries. **We can only support Slic3r statically linked against the dependencies compiled with the `deps` scripts**, the same way we compile Slic3r for our binary builds.
 
 If you have some reason to link dynamically to your system libraries, you are free to do so, but we can not and will not troubleshoot any issues you possibly run into.
 
@@ -33,7 +33,8 @@ libgtk-3-dev \
 libdbus-1-dev \
 
 ```
-The names of the packages may be different on different distros.
+git clone https://github.com/supermerill/SuperSlicer.git
+```
 
 #### 1. Cloning the repository
 
@@ -46,6 +47,13 @@ cd SLIC3R_NAME
 
 This will download the source code into a new directory and `cd` into it. You can now optionally select a tag/branch/commit to build using `git checkout`. Otherwise, `master` branch will be built.
 
+After cloning, execute `sudo ./BuildLinux.sh -u`
+And then `./BuildLinux.sh -dsi`
+The compiled executable should be in the build/package folder
+
+## How to build, the guided way
+
+You can follow the [script](https://github.com/supermerill/Slic3r/blob/master/.github/workflows/ccpp_ubuntu.yml) the build server use to create the ubuntu release.
 
 #### 2. Building dependencies
 
