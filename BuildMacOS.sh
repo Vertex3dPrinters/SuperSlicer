@@ -38,6 +38,12 @@ done
 
 echo "Build architecture: ${BUILD_ARCH}"
 
+ls /usr/local/opt
+ls /usr/local/opt/zstd
+ls /usr/local/opt/zstd/lib
+brew --prefix zstd
+
+
 # mkdir build
 if [ ! -d "build" ]
 then
