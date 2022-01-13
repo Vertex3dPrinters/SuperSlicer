@@ -287,6 +287,8 @@ public:
 		long style = wxOK)
     : wxMessageDialog(parent, message, caption, style) {}
 	~MessageDialog() {}
+	
+	void SetButtonLabel(wxWindowID btn_id, const wxString& label, bool set_focus = false);
 };
 
 // just a wrapper to wxRichMessageBox to use the same code on all platforms
