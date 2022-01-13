@@ -103,6 +103,7 @@ endif()
 if (IS_CROSS_COMPILE AND APPLE)
     if (${CMAKE_OSX_ARCHITECTURES} MATCHES "arm")
 	    message(STATUS "Compiling Boost for arm64.")
+	    message(STATUS "_boost_linkflags = ${_boost_linkflags}")
         set(_arch_flags "-arch arm64")
 		set(_boost_linkflags "linkflags=${_arch_flags}")
     elseif (${CMAKE_OSX_ARCHITECTURES} MATCHES "x86_64")
@@ -126,7 +127,6 @@ set(_build_cmd ${_build_cmd}
                boost.locale.icu=off
                --disable-icu
                ${_boost_variants}
-               ${_boost_linkflags}
                stage)
 
 set(_install_cmd ${_build_cmd} --prefix=${_prefix} install)
