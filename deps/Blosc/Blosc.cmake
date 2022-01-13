@@ -22,8 +22,7 @@ prusaslicer_add_cmake_project(Blosc
         -DBUILD_TESTS=OFF 
         -DBUILD_BENCHMARKS=OFF 
         -DPREFER_EXTERNAL_ZLIB=ON
-		-DCMAKE_OSX_ARCHITECTURES=arm64
-		-DCMAKE_CROSSCOMPILING=true
+		-DDEACTIVATE_SSE2=ON
 )
 else()
 prusaslicer_add_cmake_project(Blosc

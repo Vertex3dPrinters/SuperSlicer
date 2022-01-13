@@ -102,8 +102,11 @@ endif()
 
 if (IS_CROSS_COMPILE AND APPLE)
     if (${CMAKE_OSX_ARCHITECTURES} MATCHES "arm")
+	    message(STATUS "Compiling Boost for arm64.")
         set(_arch_flags "-arch arm64")
+		set(_boost_linkflags "linkflags=${_arch_flags}")
     elseif (${CMAKE_OSX_ARCHITECTURES} MATCHES "x86_64")
+	    message(STATUS "Compiling Boost for x86_64.")
         set(_arch_flags "-arch x86_64")
     endif()
     set(_boost_linkflags "linkflags=${_arch_flags}")
@@ -123,6 +126,7 @@ set(_build_cmd ${_build_cmd}
                boost.locale.icu=off
                --disable-icu
                ${_boost_variants}
+               ${_boost_linkflags}
                stage)
 
 set(_install_cmd ${_build_cmd} --prefix=${_prefix} install)
@@ -152,6 +156,7 @@ if ("${CMAKE_SIZEOF_VOID_P}" STREQUAL "8")
         DEPENDS dep_Boost
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
+        ${_cmake_args_osx_arch}
         INSTALL_COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_BINARY_DIR}/dep_boost_polygon-prefix/src/dep_boost_polygon/include/boost/polygon"
             "${DESTDIR}/usr/local/include/boost/polygon"

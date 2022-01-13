@@ -46,8 +46,11 @@ if (APPLE)
     set(CMAKE_FIND_FRAMEWORK LAST)
     set(CMAKE_FIND_APPBUNDLE LAST)
     list(FIND CMAKE_OSX_ARCHITECTURES ${CMAKE_SYSTEM_PROCESSOR} _arch_idx)
+	message(STATUS "prusaslicer_add_cmake_project for Apple")
     if (CMAKE_OSX_ARCHITECTURES AND _arch_idx LESS 0)
+	    message(STATUS "prusaslicer_add_cmake_project for Apple crosscompiling")
         set(IS_CROSS_COMPILE TRUE)
+        set(CMAKE_CXX_COMPILER_ID "Clang")
         string(REPLACE ";" "$<SEMICOLON>" CMAKE_OSX_ARCHS "${CMAKE_OSX_ARCHITECTURES}")
         set(_cmake_osx_arch -DCMAKE_OSX_ARCHITECTURES:STRING=${CMAKE_OSX_ARCHS})
         set(_cmake_args_osx_arch CMAKE_ARGS -DCMAKE_OSX_ARCHITECTURES:STRING=${CMAKE_OSX_ARCHS})
@@ -91,6 +94,8 @@ function(prusaslicer_add_cmake_project projectname)
         set(_gen CMAKE_GENERATOR "${DEP_MSVC_GEN}" CMAKE_GENERATOR_PLATFORM "${DEP_PLATFORM}")
         set(_build_j "/m")
     endif ()
+	
+	message(STATUS "prusaslicer_add_cmake_project ${projectname} with ${_cmake_osx_arch}")
 
     ExternalProject_Add(
         dep_${projectname}
