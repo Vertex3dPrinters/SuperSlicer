@@ -41,9 +41,9 @@ if(APPLE AND NOT BUILD_SHARED_LIBS)
 			-DOPENVDB_CORE_STATIC=${_build_static}
 			-DOPENVDB_ENABLE_RPATH:BOOL=OFF
 			-DTBB_STATIC=${_build_static}
-			-DOPENVDB_BUILD_VDB_PRINT=ON
+			-DOPENVDB_BUILD_VDB_PRINT=OFF
 			-DDISABLE_DEPENDENCY_VERSION_CHECKS=ON # Centos6 has old zlib
-			-DCMAKE_STATIC_LINKER_FLAGS="${BREW_ZSTD_PREFIX}/lib/libzstd.1.5.1.dylib"
+#			-DCMAKE_STATIC_LINKER_FLAGS="${BREW_ZSTD_PREFIX}/lib/libzstd.a"
 	)
 else()
 	prusaslicer_add_cmake_project(OpenVDB

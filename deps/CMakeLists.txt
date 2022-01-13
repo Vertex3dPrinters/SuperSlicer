@@ -97,6 +97,7 @@ function(prusaslicer_add_cmake_project projectname)
 	
 	message(STATUS "prusaslicer_add_cmake_project ${projectname} with ${_cmake_osx_arch}")
 
+if (NOT IS_CROSS_COMPILE OR NOT APPLE)
     ExternalProject_Add(
         dep_${projectname}
         EXCLUDE_FROM_ALL    ON
@@ -120,7 +121,26 @@ function(prusaslicer_add_cmake_project projectname)
        BUILD_COMMAND ${CMAKE_COMMAND} --build . --config Release -- ${_build_j}
        INSTALL_COMMAND ${CMAKE_COMMAND} --build . --target install --config Release
     )
+else()
+    ExternalProject_Add(
+        dep_${projectname}
+        EXCLUDE_FROM_ALL    ON
+        INSTALL_DIR         ${DESTDIR}/usr/local
+        DOWNLOAD_DIR        ${DEP_DOWNLOAD_DIR}/${projectname}
+        ${_gen}
+        CMAKE_ARGS
+            -DCMAKE_INSTALL_PREFIX:STRING=${DESTDIR}/usr/local
+            -DBUILD_SHARED_LIBS:BOOL=OFF
+            ${_cmake_osx_arch}
+            "${_configs_line}"
+            ${DEP_CMAKE_OPTS}
+            ${P_ARGS_CMAKE_ARGS}
+       ${P_ARGS_UNPARSED_ARGUMENTS}
+       BUILD_COMMAND ${CMAKE_COMMAND} --build . --config Release -- ${_build_j}
+       INSTALL_COMMAND ${CMAKE_COMMAND} --build . --target install --config Release
+    )
 
+endif()
 endfunction(prusaslicer_add_cmake_project)
 
 
