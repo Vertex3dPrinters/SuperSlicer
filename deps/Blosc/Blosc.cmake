@@ -6,7 +6,7 @@ else()
     set(_build_static ON)
 endif()
 
-if(IS_CROSS_COMPILE)
+if(IS_CROSS_COMPILE AND APPLE)
 prusaslicer_add_cmake_project(Blosc
     #URL https://github.com/Blosc/c-blosc/archive/refs/tags/v1.17.0.zip
     #URL_HASH SHA256=7463a1df566704f212263312717ab2c36b45d45cba6cd0dccebf91b2cc4b4da9
@@ -23,6 +23,7 @@ prusaslicer_add_cmake_project(Blosc
         -DBUILD_BENCHMARKS=OFF 
         -DPREFER_EXTERNAL_ZLIB=ON
 		-DDEACTIVATE_SSE2=ON
+		-DDEACTIVATE_AVX2=ON
 )
 else()
 prusaslicer_add_cmake_project(Blosc

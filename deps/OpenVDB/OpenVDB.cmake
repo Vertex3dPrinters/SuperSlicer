@@ -7,7 +7,12 @@ else()
 endif()
 
 if (APPLE)
+    message(STATUS "Using apple path for openvdb")
     find_package(zstd)
+	set(CMAKE_STATIC_LINKER_FLAGS "-Xlinker -v -v")
+	#set(CMAKE_SHARED_LINKER_FLAGS "-Xlinker -v -v")
+	#set(CMAKE_MODULE_LINKER_FLAGS "-Xlinker -v -v")
+	#set(CMAKE_EXE_LINKER_FLAGS "-Xlinker -v -v")
 endif()
 
 prusaslicer_add_cmake_project(OpenVDB

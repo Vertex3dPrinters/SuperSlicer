@@ -11,6 +11,7 @@
 #include <wx/richmsgdlg.h>
 #include <wx/textctrl.h>
 #include <wx/statline.h>
+#include <wx/window.h>
 
 class wxBoxSizer;
 class wxCheckBox;
@@ -22,8 +23,9 @@ namespace GUI {
 
 // A message / query dialog with a bitmap on the left and any content on the right
 // with buttons underneath.
-struct MsgDialog : wxDialog
+class MsgDialog : public wxDialog
 {
+public:
 	MsgDialog(MsgDialog &&) = delete;
 	MsgDialog(const MsgDialog &) = delete;
 	MsgDialog &operator=(MsgDialog &&) = delete;
