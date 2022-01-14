@@ -156,30 +156,21 @@ ExternalProject_Add(
 )
 
 else()
-ExternalProject_Add(dep_boost
-    EXCLUDE_FROM_ALL 1
-    URL "https://github.com/supermerill/SuperSlicer_deps/releases/download/0.4/boost_1_70_0.tar.gz"
-    URL_HASH SHA256=882b48708d211a5f48e60b0124cf5863c1534cd544ecd0664bb534a4b5d506e9
-    BUILD_IN_SOURCE 1
+
+ExternalProject_Add(
+    dep_Boost
+#    URL "https://boostorg.jfrog.io/artifactory/main/release/1.75.0/source/boost_1_75_0.tar.gz"
+    URL "https://github.com/supermerill/SuperSlicer_deps/releases/download/1.75/boost_1_75_0.tar.gz"
+    URL_HASH SHA256=aeb26f80e80945e82ee93e5939baebdca47b9dee80a07d3144be1e1a6a66dd6a
+    DOWNLOAD_DIR ${DEP_DOWNLOAD_DIR}/Boost
     CONFIGURE_COMMAND ./bootstrap.sh
         --with-toolset=clang
-        --with-libraries=system,iostreams,filesystem,thread,log,locale,regex,date_time
+        --with-libraries=date_time,filesystem,iostreams,locale,log,regex,system,thread
         "--prefix=${DESTDIR}/usr/local"
-    BUILD_COMMAND ./b2
-        -j ${NPROC}
-        --reconfigure
-        toolset=clang
-        link=static
-        variant=release
-        threading=multi
-        boost.locale.icu=off
-        "cflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET}"
-        "cxxflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET}"
-        "mflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET}"
-        "mmflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET}"
-        ${_boost_linkflags}
-        install
-    INSTALL_COMMAND ""   # b2 does that already
+#    PATCH_COMMAND ${_patch_command}
+    BUILD_COMMAND "${_build_cmd}"
+    BUILD_IN_SOURCE    ON
+    INSTALL_COMMAND "${_install_cmd}"
 )
 	# message(STATUS "Old boost build")
 # ExternalProject_Add(dep_boost
