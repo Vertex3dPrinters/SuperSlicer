@@ -93,6 +93,9 @@ endif()
 if (IS_CROSS_COMPILE AND APPLE)
     if (${CMAKE_OSX_ARCHITECTURES} MATCHES "arm")
 	    message(STATUS "Compiling Boost for arm64.")
+	    message(STATUS "Compiling Boost with toolset ${_boost_toolset}.")
+	    message(STATUS "Compiling Boost with libs ${_libs}.")
+	    message(STATUS "Compiling Boost with variant ${_boost_variants}.")
 	    message(STATUS "_boost_linkflags = ${_boost_linkflags}")
         set(_arch_flags "-arch arm64")
 		set(_boost_linkflags "linkflags=${_arch_flags}")
@@ -133,6 +136,7 @@ set(_build_cmd ${_build_cmd}
 
 set(_install_cmd ${_build_cmd} --prefix=${_prefix} install)
 
+if (NOT IS_CROSS_COMPILE OR NOT APPLE OR BUILD_SHARED_LIBS)
 ExternalProject_Add(
     dep_Boost
 #    URL "https://boostorg.jfrog.io/artifactory/main/release/1.75.0/source/boost_1_75_0.tar.gz"
@@ -146,7 +150,37 @@ ExternalProject_Add(
     INSTALL_COMMAND "${_install_cmd}"
 )
 
+else()
+ExternalProject_Add(dep_boost
+    EXCLUDE_FROM_ALL ON
+    URL "https://github.com/supermerill/SuperSlicer_deps/releases/download/1.75/boost_1_75_0.tar.gz"
+    URL_HASH SHA256=aeb26f80e80945e82ee93e5939baebdca47b9dee80a07d3144be1e1a6a66dd6a
+    BUILD_IN_SOURCE ON
+    CONFIGURE_COMMAND ./bootstrap.sh
+        --with-toolset=clang
+        --with-libraries=date_time,filesystem,iostreams,locale,log,regex,system,thread
+        "--prefix=${DESTDIR}/usr/local"
+    BUILD_COMMAND ./b2
+        -j ${NPROC}
+        --reconfigure
+        toolset=clang
+        link=static
+        variant=release
+        threading=multi
+        boost.locale.icu=off
+	    --disable-icu
+        "cflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET}"
+        "cxxflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET}"
+        "mflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET}"
+        "mmflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET}"
+        ${_boost_linkflags}
+        install
+    INSTALL_COMMAND ""   # b2 does that already
+)
+endif()
+
 if ("${CMAKE_SIZEOF_VOID_P}" STREQUAL "8")
+	message(STATUS "Patch the boost::polygon library with a custom one.")
     # Patch the boost::polygon library with a custom one.
     ExternalProject_Add(dep_boost_polygon
         EXCLUDE_FROM_ALL ON
