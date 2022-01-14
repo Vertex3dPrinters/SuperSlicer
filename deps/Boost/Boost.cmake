@@ -137,7 +137,7 @@ set(_build_cmd ${_build_cmd}
 
 set(_install_cmd ${_build_cmd} --prefix=${_prefix} install)
 
-# if (NOT IS_CROSS_COMPILE OR NOT APPLE OR BUILD_SHARED_LIBS)
+if (NOT IS_CROSS_COMPILE OR NOT APPLE OR BUILD_SHARED_LIBS)
 	message(STATUS "Standard boost build with bootstrap command '${_bootstrap_cmd}'")
 	message(STATUS "Standard boost build with patch command '${_patch_command}'")
 	message(STATUS "Standard boost build with build command '${_build_cmd}'")
@@ -155,7 +155,32 @@ ExternalProject_Add(
     INSTALL_COMMAND "${_install_cmd}"
 )
 
-# else()
+else()
+ExternalProject_Add(dep_boost
+    EXCLUDE_FROM_ALL 1
+    URL "https://github.com/supermerill/SuperSlicer_deps/releases/download/0.4/boost_1_70_0.tar.gz"
+    URL_HASH SHA256=882b48708d211a5f48e60b0124cf5863c1534cd544ecd0664bb534a4b5d506e9
+    BUILD_IN_SOURCE 1
+    CONFIGURE_COMMAND ./bootstrap.sh
+        --with-toolset=clang
+        --with-libraries=system,iostreams,filesystem,thread,log,locale,regex,date_time
+        "--prefix=${DESTDIR}/usr/local"
+    BUILD_COMMAND ./b2
+        -j ${NPROC}
+        --reconfigure
+        toolset=clang
+        link=static
+        variant=release
+        threading=multi
+        boost.locale.icu=off
+        "cflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET}"
+        "cxxflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET}"
+        "mflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET}"
+        "mmflags=-fPIC ${_arch_flags} -mmacosx-version-min=${DEP_OSX_TARGET}"
+        ${_boost_linkflags}
+        install
+    INSTALL_COMMAND ""   # b2 does that already
+)
 	# message(STATUS "Old boost build")
 # ExternalProject_Add(dep_boost
 # #    EXCLUDE_FROM_ALL ON
@@ -184,7 +209,7 @@ ExternalProject_Add(
         # install
     # INSTALL_COMMAND "${_install_cmd}"
 # )
-# endif()
+endif()
 
 if ("${CMAKE_SIZEOF_VOID_P}" STREQUAL "8")
 	message(STATUS "Patch the boost::polygon library with a custom one.")
