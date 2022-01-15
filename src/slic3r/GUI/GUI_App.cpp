@@ -218,6 +218,16 @@ public:
         banner_rect.SetTop(banner_rect.GetTop() + title_height);
         banner_rect.SetHeight(banner_rect.GetHeight() - title_height);
 
+        uint32_t color = color_from_hex(Slic3r::GUI::wxGetApp().app_config->get("color_very_dark"));
+        memDc.SetTextForeground(wxColour(color & 0xFF, (color & 0xFF00) >> 8, (color & 0xFF0000) >> 16));
+        wxString vertex_str = _L("VERTEX ");
+        wxSize vertexExtents = memDc.GetTextExtent(vertex_str);
+        memDc.DrawLabel(vertex_str, banner_rect, wxALIGN_TOP | wxALIGN_LEFT);
+        // draw the (white) labels inside of our black box (at the left of the splashscreen)
+        memDc.SetTextForeground(wxColour(180, 180, 180));
+        memDc.DrawText(_L("Edition"), banner_rect.x + vertexExtents.GetX(), banner_rect.y);
+        banner_rect.SetTop(banner_rect.GetTop() + vertexExtents.GetY());
+
         memDc.SetFont(m_constant_text.version_font);
         memDc.DrawLabel(m_constant_text.version, banner_rect, wxALIGN_TOP | wxALIGN_LEFT);
         int version_height = memDc.GetTextExtent(m_constant_text.version).GetY();
@@ -226,13 +236,13 @@ public:
         wxString credit_and_author = m_constant_text.credits;
         if (!m_author.empty())
             credit_and_author += "\n\n" + m_author;
-        memDc.DrawLabel(credit_and_author, banner_rect, wxALIGN_BOTTOM | wxALIGN_LEFT);
         int credits_height = memDc.GetMultiLineTextExtent(credit_and_author).GetY();
+        memDc.DrawText(credit_and_author, banner_rect.x, bmp.GetHeight() - credits_height - margin);
         int text_height    = memDc.GetTextExtent("text").GetY();
 
         // calculate position for the dynamic text
-        int logo_and_header_height = margin + logo_size + title_height + version_height;
-        m_action_line_y_position = logo_and_header_height + 0.5 * (bmp.GetHeight() - margin - credits_height - logo_and_header_height - text_height);
+        int logo_and_header_height = margin + logo_size + title_height + version_height + vertexExtents.GetY();
+        m_action_line_y_position = (bmp.GetHeight() + logo_and_header_height - credits_height - text_height) / 2;
     }
 
 private:
@@ -1062,14 +1072,16 @@ bool GUI_App::dark_mode()
 
 void GUI_App::init_label_colours()
 {
-    if (dark_mode()) {
-        m_color_label_modified = wxColour(253, 111, 40);
-        m_color_label_sys = wxColour(115, 220, 103);
-    }
-    else {
-        m_color_label_modified = wxColour(252, 77, 1);
-        m_color_label_sys = wxColour(26, 132, 57);
-    }
+    //if (dark_mode()) {
+    //    m_color_label_modified = wxColour(253, 111, 40);
+    //    m_color_label_sys = wxColour(115, 220, 103);
+    //}
+    //else {
+    //    m_color_label_modified = wxColour(252, 77, 1);
+    //    m_color_label_sys = wxColour(26, 132, 57);
+    //}
+    m_color_label_modified = wxColour(85, 204, 0);
+    m_color_label_sys = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
     m_color_label_default = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
     m_color_label_phony = wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT);
 }

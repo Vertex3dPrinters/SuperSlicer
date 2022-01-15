@@ -380,11 +380,7 @@ void MainFrame::update_layout()
             wxGetApp().app_config->get("tab_settings_layout_mode") == "1" ? ESettingsLayout::Tabs :
             wxGetApp().app_config->get("new_settings_layout_mode") == "1" ? ESettingsLayout::Hidden :
             wxGetApp().app_config->get("dlg_settings_layout_mode") == "1" ? ESettingsLayout::Dlg :
-#ifdef __WXMSW__
-                ESettingsLayout::Tabs);
-#else
                 ESettingsLayout::Old);
-#endif
 
     if (m_layout == layout)
         return;
@@ -659,7 +655,7 @@ void MainFrame::update_title()
     	}
     }
 
-    title += wxString(SLIC3R_APP_NAME) + "_" + wxString(SLIC3R_VERSION) ;
+    title += wxString(SLIC3R_APP_NAME) /*+ "_" + wxString(SLIC3R_VERSION) */;
     if (wxGetApp().is_editor() && !has_name)
         title += (" " + _L(SLIC3R_BASED_ON));
 

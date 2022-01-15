@@ -776,12 +776,7 @@ void PreferencesDialog::create_settings_mode_widget(wxNotebook* tabs)
     int selection = app_config->get("tab_settings_layout_mode") == "1" ? 0 :
                     app_config->get("old_settings_layout_mode") == "1" ? 1 :
                     app_config->get("new_settings_layout_mode") == "1" ? 2 :
-                    app_config->get("dlg_settings_layout_mode") == "1" ? 3 :
-#ifndef WIN32
-        1;
-#else
-        0;
-#endif
+                    app_config->get("dlg_settings_layout_mode") == "1" ? 3 : 1;
 
 	wxWindow* parent = m_optgroups_gui.back()->parent();
 
