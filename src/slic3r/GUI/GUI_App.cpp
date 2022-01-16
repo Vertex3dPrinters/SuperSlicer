@@ -1916,7 +1916,7 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
                 // the dialog needs to be destroyed before the call to switch_language()
                 // or sometimes the application crashes into wxDialogBase() destructor
                 // so we put it into an inner scope
-                wxString title = is_editor() ? wxString(SLIC3R_APP_NAME) : wxString(GCODEVIEWER_APP_NAME);
+                wxString title = is_editor() ? "SuperSlicer"/*wxString(SLIC3R_APP_NAME)*/ : wxString(GCODEVIEWER_APP_NAME);
                 title += " - " + _L("Language selection");
                 wxMessageDialog dialog(nullptr,
                     _L("Switching the language will trigger application restart.\n"

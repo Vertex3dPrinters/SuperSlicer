@@ -28,6 +28,7 @@
 #include "GUI.hpp"
 #include "wxExtensions.hpp"
 
+#define ALLOW_PRUSA_FIRST "Vertex"
 
 namespace fs = boost::filesystem;
 
