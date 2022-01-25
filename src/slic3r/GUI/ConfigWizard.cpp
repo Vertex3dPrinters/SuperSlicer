@@ -101,18 +101,20 @@ BundleMap BundleMap::load()
     const auto vendor_dir = (boost::filesystem::path(Slic3r::data_dir()) / "vendor").make_preferred();
     const auto rsrc_vendor_dir = (boost::filesystem::path(resources_dir()) / "profiles").make_preferred();
 
-    // commented prusa bundle mandatory check at startup
-    //auto prusa_bundle_path = (vendor_dir / PresetBundle::PRUSA_BUNDLE).replace_extension(".ini");
-    //auto prusa_bundle_rsrc = false;
-    //if (! boost::filesystem::exists(prusa_bundle_path)) {
-    //    prusa_bundle_path = (rsrc_vendor_dir / PresetBundle::PRUSA_BUNDLE).replace_extension(".ini");
-    //    prusa_bundle_rsrc = true;
-    //}
-    //{
-    //    Bundle prusa_bundle;
-    //    if (prusa_bundle.load(std::move(prusa_bundle_path), prusa_bundle_rsrc, true))
-    //        res.emplace(PresetBundle::PRUSA_BUNDLE, std::move(prusa_bundle)); 
-    //}
+#ifdef ALLOW_PRUSA_FIRST
+    // prusa bundle mandatory check at startup
+    auto prusa_bundle_path = (vendor_dir / ALLOW_PRUSA_FIRST).replace_extension(".ini");
+    auto prusa_bundle_rsrc = false;
+    if (! boost::filesystem::exists(prusa_bundle_path)) {
+        prusa_bundle_path = (rsrc_vendor_dir / ALLOW_PRUSA_FIRST).replace_extension(".ini");
+        prusa_bundle_rsrc = true;
+    }
+    {
+        Bundle prusa_bundle;
+        if (prusa_bundle.load(std::move(prusa_bundle_path), prusa_bundle_rsrc, true))
+            res.emplace(ALLOW_PRUSA_FIRST, std::move(prusa_bundle));
+    }
+#endif
 
     // Load the other bundles in the datadir/vendor directory
     // and then additionally from resources/profiles.
@@ -136,12 +138,12 @@ BundleMap BundleMap::load()
 
     return res;
 }
-
+#ifdef ALLOW_PRUSA_FIRST
 Bundle& BundleMap::prusa_bundle()
 {
-    auto it = find(PresetBundle::PRUSA_BUNDLE);
+    auto it = find(ALLOW_PRUSA_FIRST);
     if (it == end()) {
-        throw Slic3r::RuntimeError("ConfigWizard: Internal error in BundleMap: PRUSA_BUNDLE not loaded");
+        throw Slic3r::RuntimeError("ConfigWizard: Internal error in BundleMap: MAIN_BUNDLE not loaded");
     }
 
     return it->second;
@@ -151,7 +153,7 @@ const Bundle& BundleMap::prusa_bundle() const
 {
     return const_cast<BundleMap*>(this)->prusa_bundle();
 }
-
+#endif
 
 // Printer model picker GUI control
 
@@ -576,7 +578,7 @@ void PagePrinters::set_run_reason(ConfigWizard::RunReason run_reason)
     if (technology == T_FFF
         && (run_reason == ConfigWizard::RR_DATA_EMPTY || run_reason == ConfigWizard::RR_DATA_LEGACY)
         && printer_pickers.size() > 0 
-        && printer_pickers[0]->vendor_id == PresetBundle::PRUSA_BUNDLE) {
+        && printer_pickers[0]->vendor_id == ALLOW_PRUSA_FIRST) {
         printer_pickers[0]->select_one(0, true);
     }
 #else
@@ -1284,9 +1286,11 @@ PageVendors::PageVendors(ConfigWizard *parent)
 
     for (const auto &pair : wizard_p()->bundles) {
         const VendorProfile *vendor = pair.second.vendor_profile;
-        if (vendor->id == PresetBundle::PRUSA_BUNDLE) { continue; }
+        if (vendor->id == ALLOW_PRUSA_FIRST) { continue; }
 
-        auto *cbox = new wxCheckBox(this, wxID_ANY, vendor->name);
+        wxString name = _L(vendor->full_name);
+        name.Replace("{technology}", "");
+        auto *cbox = new wxCheckBox(this, wxID_ANY, name);
         cbox->Bind(wxEVT_CHECKBOX, [=](wxCommandEvent &event) {
             wizard_p()->on_3rdparty_install(vendor, cbox->IsChecked());
         });
@@ -1978,7 +1982,7 @@ void ConfigWizard::priv::create_3rdparty_pages()
 {
     for (const auto &pair : bundles) {
         const VendorProfile *vendor = pair.second.vendor_profile;
-        if (vendor->id == PresetBundle::PRUSA_BUNDLE) { continue; }
+        if (vendor->id == ALLOW_PRUSA_FIRST) { continue; }
 
         bool is_fff_technology = false;
         bool is_sla_technology = false;
@@ -1997,10 +2001,10 @@ void ConfigWizard::priv::create_3rdparty_pages()
         if (is_fff_technology) {
             //pageFFF = new PagePrinters(q, vendor->name + " " +_L("FFF Technology Printers"), vendor->name+" FFF", *vendor, 1, T_FFF);
             wxString name = _L(vendor->name);
-            name.Replace("{technology}", tech_to_string.at(PrinterTechnology::ptSLA));
+            name.Replace("{technology}", tech_to_string.at(PrinterTechnology::ptFFF));
             wxString description = _L(vendor->full_name);
-            description.Replace("{technology}", tech_to_string.at(PrinterTechnology::ptSLA));
-            pageFFF = new PagePrinters(q, description, name, *vendor, 1, T_SLA);
+            description.Replace("{technology}", tech_to_string.at(PrinterTechnology::ptFFF));
+            pageFFF = new PagePrinters(q, description, name, *vendor, 1, T_FFF);
             add_page(pageFFF);
         }
 
@@ -2491,7 +2495,11 @@ bool ConfigWizard::priv::apply_config(AppConfig *app_config, PresetBundle *prese
     // The default is only applied by load_presets() if the user doesn't have a (visible) printer
     // selected already.
     // Prusa printers are considered first, then 3rd party.
+#ifdef ALLOW_PRUSA_FIRST
+    const auto config_prusa = enabled_vendors.find(ALLOW_PRUSA_FIRST);
+#else
     const auto config_prusa = enabled_vendors.find("PrusaResearch");
+#endif
     if (config_prusa != enabled_vendors.end()) {
         for (const auto &model : bundles.prusa_bundle().vendor_profile->models) {
             const auto model_it = config_prusa->second.find(model.id);
