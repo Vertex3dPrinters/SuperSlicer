@@ -33,13 +33,21 @@ jobs:
     - name: build tar & appimage
       working-directory: ./build
       run: src/BuildLinuxImage.sh -i
+    - name: ls /home/runner/work/SuperSlicer-VERTEX-Edition
+      run: ls /home/runner/work/SuperSlicer-VERTEX-Edition
+    - name: ls /home/runner/work/SuperSlicer-VERTEX-Edition/SuperSlicer-VERTEX-Edition
+      run: ls /home/runner/work/SuperSlicer-VERTEX-Edition/SuperSlicer-VERTEX-Edition
+    - name: ls /home/runner/work/SuperSlicer-VERTEX-Edition/SuperSlicer-VERTEX-Edition/build
+      run: ls /home/runner/work/SuperSlicer-VERTEX-Edition/SuperSlicer-VERTEX-Edition/build
+    - name: ls /home/runner/work/SuperSlicer-VERTEX-Edition/SuperSlicer-VERTEX-Edition/build/package
+      run: ls /home/runner/work/SuperSlicer-VERTEX-Edition/SuperSlicer-VERTEX-Edition/build/package
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
       with:
         name: nightly_linux_gtk2.tar
-        path: build/${{ github.event.repository.name }}.tar
+        path: build/SuperSlicerVertex.tar
     - name: Upload appimage
       uses: actions/upload-artifact@v1.0.0
       with:
-        name: ${{ github.event.repository.name }}-gtk2.AppImage
-        path: build/${{ github.event.repository.name }}_ubu64.AppImage
+        name: SuperSlicerVertex-gtk2.AppImage
+        path: build/SuperSlicerVertex_ubu64.AppImage

@@ -23,9 +23,9 @@ jobs:
       uses: actions/upload-artifact@v1.0.0
       with:
         name: nightly_macos_arm_debug.dmg
-        path: build/${{ github.event.repository.name }}.dmg
+        path: build/SuperSlicerVertex.dmg
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
       with:
         name: nightly_arm_macos.tar
-        path: build/${{ github.event.repository.name }}.tar
+        path: build/SuperSlicerVertex.tar
