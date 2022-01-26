@@ -55,7 +55,7 @@ jobs:
       run: mkdir build
     - name: cmake
       working-directory: ./build
-      run: cmake .. -G "Visual Studio 16 2019" -A x64 -DCMAKE_PREFIX_PATH="d:\a\${{ github.event.repository.name }}\${{ github.event.repository.name }}\deps\destdir\usr\local"
+      run: cmake .. -G "Visual Studio 16 2019" -A x64 -DCMAKE_PREFIX_PATH="d:\a\SuperSlicerVertex\SuperSlicerVertex\deps\destdir\usr\local"
     - name: make
       working-directory: ./build
       run: msbuild /m /P:Configuration=Debug INSTALL.vcxproj
@@ -83,7 +83,7 @@ jobs:
       shell: cmd
       run: |
         xcopy /RCYIE Slic3r_win_build\*.dll package\
-        xcopy /RCYIE Slic3r_win_build\local-settings.bat package\${{ github.event.repository.name }}_local-settings.bat
+        xcopy /RCYIE Slic3r_win_build\local-settings.bat package\SuperSlicerVertex_local-settings.bat
         xcopy /RCYIE Slic3r_win_build\mesa package\
     - name: copy new resources
       working-directory: ./build
