@@ -120,7 +120,7 @@ void AppConfig::set_defaults()
             set("version_check", "1");
 
         if (get("preset_update").empty())
-            set("preset_update", "0");
+            set("preset_update", "1");
 
         if (get("export_sources_full_pathnames").empty())
             set("export_sources_full_pathnames", "0");

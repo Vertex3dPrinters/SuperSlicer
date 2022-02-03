@@ -1165,7 +1165,7 @@ PageUpdate::PageUpdate(ConfigWizard *parent)
     boldfont.SetWeight(wxFONTWEIGHT_BOLD);
 
     auto *box_slic3r = new wxCheckBox(this, wxID_ANY, _L("Check for application updates"));
-    box_slic3r->SetValue(false);// app_config->get("version_check") == "1"); // default to no, becasue the conf is never updated anyway. Remove that change if corrected later.
+    box_slic3r->SetValue(app_config->get("version_check") == "1");
     append(box_slic3r);
     append_text(wxString::Format(_L(
         "If enabled, %s checks for new application versions online. When a new version becomes available, "
@@ -1175,7 +1175,7 @@ PageUpdate::PageUpdate(ConfigWizard *parent)
     append_spacer(VERTICAL_SPACING);
 
     auto *box_presets = new wxCheckBox(this, wxID_ANY, _L("Update built-in Presets automatically"));
-    box_presets->SetValue(false);// app_config->get("preset_update") == "1"); // default to no, becasue the conf is never updated anyway. Remove that change if corrected later.
+    box_presets->SetValue(app_config->get("preset_update") == "1");
     append(box_presets);
     append_text(wxString::Format(_L(
         "If enabled, %s downloads updates of built-in system presets in the background."
