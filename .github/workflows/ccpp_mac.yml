@@ -19,7 +19,7 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
       with:
-        name: nightly_macos_debug.dmg
+        name: nightly_macos.dmg
         path: build/SuperSlicerVertex.dmg
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0

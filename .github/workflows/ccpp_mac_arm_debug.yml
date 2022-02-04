@@ -22,10 +22,10 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
       with:
-        name: nightly_macos_arm_debug.dmg
+        name: macos_arm_debug.dmg
         path: build/SuperSlicerVertex.dmg
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
       with:
-        name: nightly_arm_macos.tar
+        name: macos_arm_debug.tar
         path: build/SuperSlicerVertex.tar

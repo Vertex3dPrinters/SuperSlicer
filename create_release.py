@@ -13,11 +13,21 @@ import time
 from datetime import date
 import tarfile
 import subprocess
+import logging
+import http.client as http_client
 
-repo = "supermerill/SuperSlicer"
-program_name = "SuperSlicer"
+# You must initialize logging, otherwise you'll not see debug output.
+logging.basicConfig()
+logging.getLogger().setLevel(logging.DEBUG)
+requests_log = logging.getLogger("requests.packages.urllib3")
+requests_log.setLevel(logging.DEBUG)
+requests_log.propagate = True
+
+repo = "Vertex3dPrinters/SuperSlicer-VERTEX-Edition"
+program_name = "SuperSlicerVertex"
+program_output_name = "SuperSlicer-Vertex-Edition"
 path_7zip = r"C:\Program Files\7-Zip\7z.exe"
-github_auth_token = "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"
+github_auth_token = "ghp_"
 
 def get_version():
 	settings_stream = open("./version.inc", mode="r", encoding="utf-8");
@@ -54,7 +64,7 @@ with urlopen("https://api.github.com/repos/"+repo+"/actions/artifacts") as f:
 			resp = requests.get(entry["archive_download_url"], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
 			print("win: " +str(resp));
 			z = zipfile.ZipFile(io.BytesIO(resp.content))
-			base_name = release_path+"/"+program_name+"_"+version+"_win64_"+date_str;
+			base_name = release_path+"/"+program_output_name+"_"+version+"_win64_"+date_str;
 			z.extractall(base_name);
 			try:
 				ret = subprocess.check_output([path_7zip, "a", "-tzip", base_name+".zip", base_name]);
@@ -67,39 +77,39 @@ with urlopen("https://api.github.com/repos/"+repo+"/actions/artifacts") as f:
 			print("macos: " +str(resp));
 			z = zipfile.ZipFile(io.BytesIO(resp.content));
 			z.extractall(release_path);
-			os.rename(release_path+"/"+program_name+".dmg", release_path+"/"+program_name+"_"+version+"_macos_"+date_str+".dmg");
-		if entry["name"] == "rc_arm_macos.dmg" and not found_macos_arm:
+			os.rename(release_path+"/"+program_name+".dmg", release_path+"/"+program_output_name+"_"+version+"_macos_"+date_str+".dmg");
+		if entry["name"] == "rc_macos_arm.dmg" and not found_macos_arm:
 			found_macos_arm = True;
 			print("ask for: "+entry["archive_download_url"]);
 			resp = requests.get(entry["archive_download_url"], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
 			print("macos-arm: " +str(resp));
 			z = zipfile.ZipFile(io.BytesIO(resp.content));
 			z.extractall(release_path);
-			os.rename(release_path+"/"+program_name+".dmg", release_path+"/"+program_name+"_"+version+"_macos_arm_"+date_str+".dmg");
+			os.rename(release_path+"/"+program_name+".dmg", release_path+"/"+program_output_name+"_"+version+"_macos_arm_"+date_str+".dmg");
 		if entry["name"] == "rc-"+program_name+"-gtk2.AppImage" and not found_linux_appimage_gtk2:
 			found_linux_appimage_gtk2 = True;
 			print("ask for: "+entry["archive_download_url"]);
 			resp = requests.get(entry["archive_download_url"], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
-			print("appimage: " +str(resp));
+			print("gtk2 appimage: " +str(resp));
 			z = zipfile.ZipFile(io.BytesIO(resp.content));
 			z.extractall(release_path);
-			os.rename(release_path+"/"+program_name+"_ubu64.AppImage", release_path+"/"+program_name+"-ubuntu_18.04-gtk2-" + version + ".AppImage");
+			os.rename(release_path+"/"+program_name+"_ubu64.AppImage", release_path+"/"+program_output_name+"-ubuntu_18.04-gtk2-" + version + ".AppImage");
 		if entry["name"] == "rc-"+program_name+"-gtk3.AppImage" and not found_linux_appimage_gtk3:
 			found_linux_appimage_gtk3 = True;
 			print("ask for: "+entry["archive_download_url"]);
 			resp = requests.get(entry["archive_download_url"], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
-			print("appimage: " +str(resp));
+			print("GTK3 appimage: " +str(resp));
 			z = zipfile.ZipFile(io.BytesIO(resp.content));
 			z.extractall(release_path);
-			os.rename(release_path+"/"+program_name+"_ubu64.AppImage", release_path+"/"+program_name+"-ubuntu_18.04-" + version + ".AppImage");
+			os.rename(release_path+"/"+program_name+"_ubu64.AppImage", release_path+"/"+program_output_name+"-ubuntu_18.04-" + version + ".AppImage");
 		if entry["name"] == "rc_linux_gtk3.tar" and not found_linux:
 			found_linux = True;
 			print("ask for: "+entry["archive_download_url"]);
 			resp = requests.get(entry["archive_download_url"], headers={'Authorization': 'token ' + github_auth_token,}, allow_redirects=True);
-			print("appimage: " +str(resp));
+			print("GTK3 tar: " +str(resp));
 			z = zipfile.ZipFile(io.BytesIO(resp.content));
 			z.extractall(release_path);
-			base_path = release_path+"/"+program_name+"_" + version + "_linux64_" + date_str;
+			base_path = release_path+"/"+program_output_name+"_" + version + "_linux64_" + date_str;
 			os.rename(release_path+"/"+program_name+".tar", base_path+".tar");
 			try:
 				subprocess.check_output([path_7zip, "a", "-tzip", base_path+".tar.zip", base_path+".tar"]);
