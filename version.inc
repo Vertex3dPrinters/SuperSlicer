@@ -8,10 +8,10 @@ set(SLIC3R_APP_KEY "SuperSlicerVertex")
 # exe name of the slicer, should be lowercase and valid in all os
 set(SLIC3R_APP_CMD "superslicer-vertex")
 # versions
-set(SLIC3R_VERSION "2.3.57")
-set(SLIC3R_VERSION_FULL "2.3.57.12")
+set(SLIC3R_VERSION "2.4.58")
+set(SLIC3R_VERSION_FULL "2.4.58.5")
 set(SLIC3R_BUILD_ID "${SLIC3R_APP_KEY}_${SLIC3R_VERSION_FULL}+UNKNOWN")
-set(SLIC3R_RC_VERSION "2,3,57,12")
+set(SLIC3R_RC_VERSION "2,4,58,5")
 set(SLIC3R_RC_VERSION_DOTS "${SLIC3R_VERSION_FULL}")
 
 # Same as the slicer name but for gcodeviewer
@@ -27,3 +27,4 @@ set(SLIC3R_INTRO "")
 set(SLIC3R_GITHUB "supermerill/SuperSlicer")
 # download url
 set(SLIC3R_DOWNLOAD "https://github.com/Vertex3dPrinters/SuperSlicer-VERTEX-Edition/releases")
+set(SLIC3R_DOC_URL "https://manual.slic3r.org/")

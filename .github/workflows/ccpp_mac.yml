@@ -1,10 +1,12 @@
-name: C/C++ Nigthly macos
+name: C/C++ Nightly macos
 
 on:
   push:
     branches:
       - Nigthly
-      - Nightly
+      - nightly_dev
+      - nightly_master
+      - debug_macos
 
 jobs:
   build:
@@ -12,9 +14,7 @@ jobs:
     runs-on: macos-10.15
     
     steps:
-    - uses: actions/checkout@v2
-      with:
-        ref: 'Nigthly'
+    - uses: actions/checkout@v3
     - name: build deps & slicer
       run: ./BuildMacOS.sh -i
     - name: Upload artifact

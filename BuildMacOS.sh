@@ -38,6 +38,27 @@ done
 
 echo "Build architecture: ${BUILD_ARCH}"
 
+echo "\n/Applications:\n"
+ls /Applications
+echo "\n/Applications/Xcode_13.2.1.app:\n"
+ls /Applications/Xcode_13.2.1.app
+echo "\n/Applications/Xcode_13.2.1.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs:\n"
+ls /Applications/Xcode_13.2.1.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
+echo "\n/Applications/Xcode_13.2.1.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/lib:\n"
+ls /Applications/Xcode_13.2.1.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/lib
+
+# Iconv: /Applications/Xcode_13.2.1.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/lib/libiconv.tbd
+echo "\nbrew --prefix libiconv:\n"
+brew --prefix libiconv
+echo "\nbrew --prefix zstd:\n"
+brew --prefix zstd
+export LIBRARY_PATH=$LIBRARY_PATH:$(brew --prefix zstd)/lib/
+# not enough to fix the issue on cross-compiling
+#if [[ -n "$BUILD_ARCH" ]]
+#then
+#    export LIBRARY_PATH=$LIBRARY_PATH:$(brew --prefix libiconv)/lib/
+#fi
+
 # mkdir build
 if [ ! -d "build" ]
 then
@@ -79,9 +100,9 @@ echo -n "[3/9] Configuring dependencies..."
         BUILD_ARGS="${BUILD_ARGS} -DCMAKE_BUILD_TYPE=Debug"
     fi
     # cmake deps
-    echo "Cmake command: cmake .. -DCMAKE_OSX_DEPLOYMENT_TARGET=\"10.13\" ${BUILD_ARCH} "
+    echo "Cmake command: cmake .. -DCMAKE_OSX_DEPLOYMENT_TARGET=\"10.14\" ${BUILD_ARCH} "
     pushd deps/build
-    cmake .. -DCMAKE_OSX_DEPLOYMENT_TARGET="10.13" $BUILD_ARGS 
+    cmake .. -DCMAKE_OSX_DEPLOYMENT_TARGET="10.14" $BUILD_ARGS 
     echo "ls deps/build:"
     ls -al
     echo "ls deps/build/dep_GLEW-prefix"
@@ -93,6 +114,16 @@ echo -n "[4/9] Building dependencies..."
 {
     # make deps
     make -j$NCORES
+
+    echo "ls $PWD/destdir/usr/local/lib"
+    ls $PWD/destdir/usr/local/lib
+    
+    echo "ls $PWD/destdir/usr/local/lib/cmake"
+    ls $PWD/destdir/usr/local/lib/cmake
+    
+    echo "ls $PWD/destdir/usr/local/lib/cmake/boost_locale-1.75.0"
+    ls $PWD/destdir/usr/local/lib/cmake/boost_locale-1.75.0
+
 } #&> $ROOT/build/Build.log # Capture all command output
 echo "done"
 
@@ -128,8 +159,8 @@ echo -n "[7/9] Configuring Slic3r..."
     fi
     # cmake
     pushd build
-    echo "Cmake command: cmake .. -DCMAKE_PREFIX_PATH=\"$PWD/../deps/build/destdir/usr/local\" -DCMAKE_OSX_DEPLOYMENT_TARGET=\"10.13\" -DSLIC3R_STATIC=1 ${BUILD_ARGS}"
-    cmake .. -DCMAKE_PREFIX_PATH="$PWD/../deps/build/destdir/usr/local" -DCMAKE_OSX_DEPLOYMENT_TARGET="10.13" -DSLIC3R_STATIC=1 ${BUILD_ARGS}
+    echo "Cmake command: cmake .. -DCMAKE_PREFIX_PATH=\"$PWD/../deps/build/destdir/usr/local\" -DCMAKE_OSX_DEPLOYMENT_TARGET=\"10.14\" -DSLIC3R_STATIC=1 ${BUILD_ARGS}"
+    cmake .. -DCMAKE_PREFIX_PATH="$PWD/../deps/build/destdir/usr/local" -DCMAKE_OSX_DEPLOYMENT_TARGET="10.14" -DSLIC3R_STATIC=1 ${BUILD_ARGS}
 } #&> $ROOT/build/Build.log # Capture all command output
 echo "done"
 

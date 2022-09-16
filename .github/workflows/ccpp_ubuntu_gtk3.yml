@@ -1,10 +1,12 @@
-name: C/C++ Nigthly ubuntu-GTK3
+name: C/C++ Nightly ubuntu-GTK3
 
 on:
   push:
     branches:
       - Nigthly
-      - Nightly
+      - nightly_dev
+      - nightly_master
+      - debug_ubuntu
 
 jobs:
   build:
@@ -12,9 +14,7 @@ jobs:
     runs-on: ubuntu-18.04
     
     steps:
-    - uses: actions/checkout@v2
-      with:
-        ref: 'Nigthly'
+    - uses: actions/checkout@v3
     - name: update submodule profiles
       working-directory: ./resources/profiles
       run: git submodule update --init

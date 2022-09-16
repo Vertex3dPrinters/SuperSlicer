@@ -1,6 +1,9 @@
+#include <unordered_set>
+
 #include <libslic3r/Exception.hpp>
 #include <libslic3r/SLAPrintSteps.hpp>
 #include <libslic3r/MeshBoolean.hpp>
+#include <libslic3r/TriangleMeshSlicer.hpp>
 
 // Need the cylinder method for the the drainholes in hollowing step
 #include <libslic3r/SLA/SupportTreeBuilder.hpp>
@@ -10,11 +13,9 @@
 #include <libslic3r/SLA/SupportPointGenerator.hpp>
 
 #include <libslic3r/ElephantFootCompensation.hpp>
+#include <libslic3r/AABBTreeIndirect.hpp>
 
 #include <libslic3r/ClipperUtils.hpp>
-
-// For geometry algorithms with native Clipper types (no copies and conversions)
-#include <libnest2d/backends/clipper/geometries.hpp>
 
 #include <boost/log/trivial.hpp>
 
@@ -131,21 +132,213 @@ void SLAPrint::Steps::hollow_model(SLAPrintObject &po)
     double quality  = po.m_config.hollowing_quality.getFloat();
     double closing_d = po.m_config.hollowing_closing_distance.getFloat();
     sla::HollowingConfig hlwcfg{thickness, quality, closing_d};
-    auto meshptr = generate_interior(po.transformed_mesh(), hlwcfg);
 
-    if (meshptr->empty())
+    sla::InteriorPtr interior = generate_interior(po.transformed_mesh(), hlwcfg);
+
+    if (!interior || sla::get_mesh(*interior).empty())
         BOOST_LOG_TRIVIAL(warning) << "Hollowed interior is empty!";
     else {
         po.m_hollowing_data.reset(new SLAPrintObject::HollowingData());
-        po.m_hollowing_data->interior = *meshptr;
+        po.m_hollowing_data->interior = std::move(interior);
     }
+}
+
+struct FaceHash {
+
+    // A 64 bit number's max hex digits
+    static constexpr size_t MAX_NUM_CHARS = 16;
+
+    // A hash is created for each triangle to be identifiable. The hash uses
+    // only the triangle's geometric traits, not the index in a particular mesh.
+    std::unordered_set<std::string> facehash;
+
+    // Returns the string in reverse, but that is ok for hashing
+    static std::array<char, MAX_NUM_CHARS + 1> to_chars(int64_t val)
+    {
+        std::array<char, MAX_NUM_CHARS + 1> ret;
+
+        static const constexpr char * Conv = "0123456789abcdef";
+
+        auto ptr = ret.begin();
+        auto uval = static_cast<uint64_t>(std::abs(val));
+        while (uval) {
+            *ptr = Conv[uval & 0xf];
+            ++ptr;
+            uval = uval >> 4;
+        }
+        if (val < 0) { *ptr = '-'; ++ptr; }
+        *ptr = '\0'; // C style string ending
+
+        return ret;
+    }
+
+    static std::string hash(const Vec<3, int64_t> &v)
+    {
+        std::string ret;
+        ret.reserve(3 * MAX_NUM_CHARS);
+
+        for (auto val : v)
+            ret += to_chars(val).data();
+
+        return ret;
+    }
+
+    static std::string facekey(const Vec3i32 &face, const std::vector<Vec3f> &vertices)
+    {
+        // Scale to integer to avoid floating points
+        std::array<Vec<3, int64_t>, 3> pts = {
+            scaled<int64_t>(vertices[face(0)]),
+            scaled<int64_t>(vertices[face(1)]),
+            scaled<int64_t>(vertices[face(2)])
+        };
+
+        // Get the first two sides of the triangle, do a cross product and move
+        // that vector to the center of the triangle. This encodes all
+        // information to identify an identical triangle at the same position.
+        Vec<3, int64_t> a = pts[0] - pts[2], b = pts[1] - pts[2];
+        Vec<3, int64_t> c = a.cross(b) + (pts[0] + pts[1] + pts[2]) / 3;
+
+        // Return a concatenated string representation of the coordinates
+        return hash(c);
+    }
+
+    FaceHash (const indexed_triangle_set &its): facehash(its.indices.size())
+    {
+        for (const Vec3i32 &face : its.indices)
+            facehash.insert(facekey(face, its.vertices));
+    }
+
+    bool find(const std::string &key)
+    {
+        auto it = facehash.find(key);
+        return it != facehash.end();
+    }
+};
+
+// Create exclude mask for triangle removal inside hollowed interiors.
+// This is necessary when the interior is already part of the mesh which was
+// drilled using CGAL mesh boolean operation. Excluded will be the triangles
+// originally part of the interior mesh and triangles that make up the drilled
+// hole walls.
+static std::vector<bool> create_exclude_mask(
+        const indexed_triangle_set &its,
+        const sla::Interior &interior,
+        const std::vector<sla::DrainHole> &holes)
+{
+    FaceHash interior_hash{sla::get_mesh(interior)};
+
+    std::vector<bool> exclude_mask(its.indices.size(), false);
+
+    VertexFaceIndex neighbor_index{its};
+
+    auto exclude_neighbors = [&neighbor_index, &exclude_mask](const Vec3i32 &face)
+    {
+        for (int i = 0; i < 3; ++i) {
+            const auto &neighbors_range = neighbor_index[face(i)];
+            for (size_t fi_n : neighbors_range)
+                exclude_mask[fi_n] = true;
+        }
+    };
+
+    for (size_t fi = 0; fi < its.indices.size(); ++fi) {
+        auto &face = its.indices[fi];
+
+        if (interior_hash.find(FaceHash::facekey(face, its.vertices))) {
+            exclude_mask[fi] = true;
+            continue;
+        }
+
+        if (exclude_mask[fi]) {
+            exclude_neighbors(face);
+            continue;
+        }
+
+        // Lets deal with the holes. All the triangles of a hole and all the
+        // neighbors of these triangles need to be kept. The neigbors were
+        // created by CGAL mesh boolean operation that modified the original
+        // interior inside the input mesh to contain the holes.
+        Vec3d tr_center = (
+            its.vertices[face(0)] +
+            its.vertices[face(1)] +
+            its.vertices[face(2)]
+        ).cast<double>() / 3.;
+
+        // If the center is more than half a mm inside the interior,
+        // it cannot possibly be part of a hole wall.
+        if (sla::get_distance(tr_center, interior) < -0.5)
+            continue;
+
+        Vec3f U = its.vertices[face(1)] - its.vertices[face(0)];
+        Vec3f V = its.vertices[face(2)] - its.vertices[face(0)];
+        Vec3f C = U.cross(V);
+        Vec3f face_normal = C.normalized();
+
+        for (const sla::DrainHole &dh : holes) {
+            if (dh.failed) continue;
+
+            Vec3d dhpos = dh.pos.cast<double>();
+            Vec3d dhend = dhpos + dh.normal.cast<double>() * dh.height;
+
+            Linef3 holeaxis{dhpos, dhend};
+
+            double D_hole_center = line_alg::distance_to(holeaxis, tr_center);
+            double D_hole        = std::abs(D_hole_center - dh.radius);
+            float dot            = dh.normal.dot(face_normal);
+
+            // Empiric tolerances for center distance and normals angle.
+            // For triangles that are part of a hole wall the angle of
+            // triangle normal and the hole axis is around 90 degrees,
+            // so the dot product is around zero.
+            double D_tol = dh.radius / sla::DrainHole::steps;
+            float normal_angle_tol = 1.f / sla::DrainHole::steps;
+
+            if (D_hole < D_tol && std::abs(dot) < normal_angle_tol) {
+                exclude_mask[fi] = true;
+                exclude_neighbors(face);
+            }
+        }
+    }
+
+    return exclude_mask;
+}
+
+static indexed_triangle_set
+remove_unconnected_vertices(const indexed_triangle_set &its)
+{
+    if (its.indices.empty()) {};
+
+    indexed_triangle_set M;
+
+    std::vector<int> vtransl(its.vertices.size(), -1);
+    int vcnt = 0;
+    for (auto &f : its.indices) {
+
+        for (int i = 0; i < 3; ++i)
+            if (vtransl[size_t(f(i))] < 0) {
+
+                M.vertices.emplace_back(its.vertices[size_t(f(i))]);
+                vtransl[size_t(f(i))] = vcnt++;
+            }
+
+        std::array<int, 3> new_f = {
+            vtransl[size_t(f(0))],
+            vtransl[size_t(f(1))],
+            vtransl[size_t(f(2))]
+        };
+
+        M.indices.emplace_back(new_f[0], new_f[1], new_f[2]);
+    }
+
+    return M;
 }
 
 // Drill holes into the hollowed/original mesh.
 void SLAPrint::Steps::drill_holes(SLAPrintObject &po)
 {
     bool needs_drilling = ! po.m_model_object->sla_drain_holes.empty();
-    bool is_hollowed = (po.m_hollowing_data && ! po.m_hollowing_data->interior.empty());
+    bool is_hollowed =
+        (po.m_hollowing_data && po.m_hollowing_data->interior &&
+         !sla::get_mesh(*po.m_hollowing_data->interior).empty());
 
     if (! is_hollowed && ! needs_drilling) {
         // In this case we can dump any data that might have been
@@ -163,12 +356,18 @@ void SLAPrint::Steps::drill_holes(SLAPrintObject &po)
     // holes that are no longer on the frontend.
     TriangleMesh &hollowed_mesh = po.m_hollowing_data->hollow_mesh_with_holes;
     hollowed_mesh = po.transformed_mesh();
-    if (! po.m_hollowing_data->interior.empty()) {
-        hollowed_mesh.merge(po.m_hollowing_data->interior);
-        hollowed_mesh.require_shared_vertices();
-    }
+    if (is_hollowed)
+        sla::hollow_mesh(hollowed_mesh, *po.m_hollowing_data->interior);
+
+    TriangleMesh &mesh_view = po.m_hollowing_data->hollow_mesh_with_holes_trimmed;
 
     if (! needs_drilling) {
+        mesh_view = po.transformed_mesh();
+
+        if (is_hollowed)
+            sla::hollow_mesh(mesh_view, *po.m_hollowing_data->interior,
+                             sla::hfRemoveInsideTriangles);
+
         BOOST_LOG_TRIVIAL(info) << "Drilling skipped (no holes).";
         return;
     }
@@ -176,31 +375,96 @@ void SLAPrint::Steps::drill_holes(SLAPrintObject &po)
     BOOST_LOG_TRIVIAL(info) << "Drilling drainage holes.";
     sla::DrainHoles drainholes = po.transformed_drainhole_points();
     
+    auto tree = AABBTreeIndirect::build_aabb_tree_over_indexed_triangle_set(
+        hollowed_mesh.its.vertices,
+        hollowed_mesh.its.indices
+    );
+
     std::uniform_real_distribution<float> dist(0., float(EPSILON));
-    auto holes_mesh_cgal = MeshBoolean::cgal::triangle_mesh_to_cgal({});
-    for (sla::DrainHole holept : drainholes) {
+    auto holes_mesh_cgal = MeshBoolean::cgal::triangle_mesh_to_cgal({}, {});
+    indexed_triangle_set part_to_drill = hollowed_mesh.its;
+
+    bool hole_fail = false;
+    for (size_t i = 0; i < drainholes.size(); ++i) {
+        sla::DrainHole holept = drainholes[i];
+
         holept.normal += Vec3f{dist(m_rng), dist(m_rng), dist(m_rng)};
         holept.normal.normalize();
         holept.pos += Vec3f{dist(m_rng), dist(m_rng), dist(m_rng)};
-        TriangleMesh m = sla::to_triangle_mesh(holept.to_mesh());
-        m.require_shared_vertices();
-        auto cgal_m = MeshBoolean::cgal::triangle_mesh_to_cgal(m);
-        MeshBoolean::cgal::plus(*holes_mesh_cgal, *cgal_m);
+        indexed_triangle_set m = holept.to_mesh();
+
+        part_to_drill.indices.clear();
+        auto bb = bounding_box(m);
+        Eigen::AlignedBox<float, 3> ebb{bb.min.cast<float>(),
+                                        bb.max.cast<float>()};
+
+        AABBTreeIndirect::traverse(
+                    tree,
+                    AABBTreeIndirect::intersecting(ebb),
+                    [&part_to_drill, &hollowed_mesh](size_t faceid)
+        {
+            part_to_drill.indices.emplace_back(hollowed_mesh.its.indices[faceid]);
+        });
+
+        auto cgal_meshpart = MeshBoolean::cgal::triangle_mesh_to_cgal(
+            remove_unconnected_vertices(part_to_drill));
+
+        if (MeshBoolean::cgal::does_self_intersect(*cgal_meshpart)) {
+            BOOST_LOG_TRIVIAL(error) << "Failed to drill hole";
+
+            hole_fail = drainholes[i].failed =
+                    po.model_object()->sla_drain_holes[i].failed = true;
+
+            continue;
     }
     
+        auto cgal_hole = MeshBoolean::cgal::triangle_mesh_to_cgal(m);
+        MeshBoolean::cgal::plus(*holes_mesh_cgal, *cgal_hole);
+    }
+
     if (MeshBoolean::cgal::does_self_intersect(*holes_mesh_cgal))
         throw Slic3r::SlicingError(L("Too many overlapping holes."));
     
     auto hollowed_mesh_cgal = MeshBoolean::cgal::triangle_mesh_to_cgal(hollowed_mesh);
     
+    if (!MeshBoolean::cgal::does_bound_a_volume(*hollowed_mesh_cgal)) {
+        po.active_step_add_warning(
+            PrintStateBase::WarningLevel::NON_CRITICAL,
+            L("Mesh to be hollowed is not suitable for hollowing (does not "
+              "bound a volume)."));
+    }
+
+    if (!MeshBoolean::cgal::empty(*holes_mesh_cgal)
+        && !MeshBoolean::cgal::does_bound_a_volume(*holes_mesh_cgal)) {
+        po.active_step_add_warning(
+            PrintStateBase::WarningLevel::NON_CRITICAL,
+            L("Unable to drill the current configuration of holes into the "
+              "model."));
+    }
+
     try {
+        if (!MeshBoolean::cgal::empty(*holes_mesh_cgal))
         MeshBoolean::cgal::minus(*hollowed_mesh_cgal, *holes_mesh_cgal);
+
         hollowed_mesh = MeshBoolean::cgal::cgal_to_triangle_mesh(*hollowed_mesh_cgal);
-    } catch (const std::runtime_error &) {
+        mesh_view = hollowed_mesh;
+
+        if (is_hollowed) {
+            auto &interior = *po.m_hollowing_data->interior;
+            std::vector<bool> exclude_mask =
+                    create_exclude_mask(mesh_view.its, interior, drainholes);
+
+            sla::remove_inside_triangles(mesh_view, interior, exclude_mask);
+        }
+    } catch (const Slic3r::RuntimeError &) {
         throw Slic3r::SlicingError(L(
             "Drilling holes into the mesh failed. "
             "This is usually caused by broken model. Try to fix it first."));
     }
+
+    if (hole_fail)
+        po.active_step_add_warning(PrintStateBase::WarningLevel::NON_CRITICAL,
+                                   L("Failed to drill some holes into the model"));
 }
 
 // The slicing will be performed on an imaginary 1D grid which starts from
@@ -213,7 +477,7 @@ void SLAPrint::Steps::drill_holes(SLAPrintObject &po)
 // same imaginary grid (the height vector argument to TriangleMeshSlicer).
 void SLAPrint::Steps::slice_model(SLAPrintObject &po)
 {   
-    const TriangleMesh &mesh = po.get_mesh_to_print();
+    const TriangleMesh &mesh = po.get_mesh_to_slice();
 
     // We need to prepare the slice index...
     
@@ -252,21 +516,29 @@ void SLAPrint::Steps::slice_model(SLAPrintObject &po)
     for(auto it = slindex_it; it != po.m_slice_index.end(); ++it)
         po.m_model_height_levels.emplace_back(it->slice_level());
     
-    
     po.m_model_slices.clear();
-    float closing_r  = float(po.config().slice_closing_radius.value);
+    MeshSlicingParamsEx params;
+    params.closing_radius = float(po.config().slice_closing_radius.value);
+    params.model_resolution = float(po.config().model_precision.value);
+    switch (po.config().slicing_mode.value) {
+    case SlicingMode::Regular:    params.mode = MeshSlicingParams::SlicingMode::Regular; break;
+    case SlicingMode::EvenOdd:    params.mode = MeshSlicingParams::SlicingMode::EvenOdd; break;
+    case SlicingMode::CloseHoles: params.mode = MeshSlicingParams::SlicingMode::Positive; break;
+    }
     auto  thr        = [this]() { m_print->throw_if_canceled(); };
     auto &slice_grid = po.m_model_height_levels;
-    TriangleMeshSlicer slicer(closing_r, 0);
-    slicer.init(&mesh, thr);
-    slicer.slice(slice_grid, SlicingMode::Regular, &po.m_model_slices, thr);
+    po.m_model_slices = slice_mesh_ex(mesh.its, slice_grid, params, thr);
     
-    if (po.m_hollowing_data && ! po.m_hollowing_data->interior.empty()) {
-        po.m_hollowing_data->interior.repair(true);
-        TriangleMeshSlicer interior_slicer(closing_r, 0);
-        interior_slicer.init(&po.m_hollowing_data->interior, thr);
-        std::vector<ExPolygons> interior_slices;
-        interior_slicer.slice(slice_grid, SlicingMode::Regular, &interior_slices, thr);
+    sla::Interior *interior = po.m_hollowing_data ?
+                                  po.m_hollowing_data->interior.get() :
+                                  nullptr;
+
+    if (interior && ! sla::get_mesh(*interior).empty()) {
+        indexed_triangle_set interiormesh = sla::get_mesh(*interior);
+        sla::swap_normals(interiormesh);
+        params.mode = MeshSlicingParams::SlicingMode::Regular;
+
+        std::vector<ExPolygons> interior_slices = slice_mesh_ex(interiormesh, slice_grid, params, thr);
 
         sla::ccr::for_each(size_t(0), interior_slices.size(),
                            [&po, &interior_slices] (size_t i) {
@@ -288,7 +560,7 @@ void SLAPrint::Steps::slice_model(SLAPrintObject &po)
         
     if(po.m_config.supports_enable.getBool() || po.m_config.pad_enable.getBool())
     {
-        po.m_supportdata.reset(new SLAPrintObject::SupportData(mesh));
+        po.m_supportdata.reset(new SLAPrintObject::SupportData(po.get_mesh_to_print()));
     }
 }
 
@@ -299,10 +571,8 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
     // If supports are disabled, we can skip the model scan.
     if(!po.m_config.supports_enable.getBool()) return;
     
-    const TriangleMesh &mesh = po.get_mesh_to_print();
-    
     if (!po.m_supportdata)
-        po.m_supportdata.reset(new SLAPrintObject::SupportData(mesh));
+        po.m_supportdata.reset(new SLAPrintObject::SupportData(po.get_mesh_to_print()));
     
     const ModelObject& mo = *po.m_model_object;
     
@@ -440,15 +710,14 @@ void SLAPrint::Steps::generate_pad(SLAPrintObject &po) {
             // we sometimes call it "builtin pad" is enabled so we will
             // get a sample from the bottom of the mesh and use it for pad
             // creation.
-            sla::pad_blueprint(trmesh, bp, float(pad_h),
+            sla::pad_blueprint(trmesh.its, bp, float(pad_h),
                                float(po.m_config.layer_height.getFloat()),
                                [this](){ throw_if_canceled(); });
         }
         
-        po.m_supportdata->support_tree_ptr->add_pad(bp, pcfg);
-        auto &pad_mesh = po.m_supportdata->support_tree_ptr->retrieve_mesh(sla::MeshType::Pad);
+        po.m_supportdata->create_pad(bp, pcfg);
         
-        if (!validate_pad(pad_mesh, pcfg))
+        if (!validate_pad(po.m_supportdata->support_tree_ptr->retrieve_mesh(sla::MeshType::Pad), pcfg))
             throw Slic3r::SlicingError(
                     L("No pad can be generated for this model with the "
                       "current configuration"));
@@ -492,55 +761,12 @@ void SLAPrint::Steps::slice_supports(SLAPrintObject &po) {
     report_status(-2, "", SlicingStatus::RELOAD_SLA_PREVIEW);
 }
 
-using ClipperPoint  = ClipperLib::IntPoint;
-using ClipperPolygon = ClipperLib::Polygon; // see clipper_polygon.hpp in libnest2d
-using ClipperPolygons = std::vector<ClipperPolygon>;
-
-static ClipperPolygons polyunion(const ClipperPolygons &subjects)
-{
-    ClipperLib::Clipper clipper;
-    
-    bool closed = true;
-    
-    for(auto& path : subjects) {
-        clipper.AddPath(path.Contour, ClipperLib::ptSubject, closed);
-        clipper.AddPaths(path.Holes, ClipperLib::ptSubject, closed);
-    }
-    
-    auto mode = ClipperLib::pftPositive;
-    
-    return libnest2d::clipper_execute(clipper, ClipperLib::ctUnion, mode, mode);
-}
-
-static ClipperPolygons polydiff(const ClipperPolygons &subjects, const ClipperPolygons& clips)
-{
-    ClipperLib::Clipper clipper;
-    
-    bool closed = true;
-    
-    for(auto& path : subjects) {
-        clipper.AddPath(path.Contour, ClipperLib::ptSubject, closed);
-        clipper.AddPaths(path.Holes, ClipperLib::ptSubject, closed);
-    }
-    
-    for(auto& path : clips) {
-        clipper.AddPath(path.Contour, ClipperLib::ptClip, closed);
-        clipper.AddPaths(path.Holes, ClipperLib::ptClip, closed);
-    }
-    
-    auto mode = ClipperLib::pftPositive;
-    
-    return libnest2d::clipper_execute(clipper, ClipperLib::ctDifference, mode, mode);
-}
-
 // get polygons for all instances in the object
-static ClipperPolygons get_all_polygons(const SliceRecord& record, SliceOrigin o)
+static ExPolygons get_all_polygons(const SliceRecord& record, SliceOrigin o)
 {
-    namespace sl = libnest2d::sl;
-    
     if (!record.print_obj()) return {};
     
-    ClipperPolygons polygons;
+    ExPolygons polygons;
     auto &input_polygons = record.get_slice(o);
     auto &instances = record.print_obj()->instances();
     bool is_lefthanded = record.print_obj()->is_left_handed();
@@ -551,43 +777,42 @@ static ClipperPolygons get_all_polygons(const SliceRecord& record, SliceOrigin o
         
         for (size_t i = 0; i < instances.size(); ++i)
         {
-            ClipperPolygon poly;
+            ExPolygon poly;
             
             // We need to reverse if is_lefthanded is true but
             bool needreverse = is_lefthanded;
             
             // should be a move
-            poly.Contour.reserve(polygon.contour.size() + 1);
+            poly.contour.points.reserve(polygon.contour.size() + 1);
             
             auto& cntr = polygon.contour.points;
             if(needreverse)
                 for(auto it = cntr.rbegin(); it != cntr.rend(); ++it)
-                    poly.Contour.emplace_back(it->x(), it->y());
+                    poly.contour.points.emplace_back(it->x(), it->y());
             else
                 for(auto& p : cntr)
-                    poly.Contour.emplace_back(p.x(), p.y());
+                    poly.contour.points.emplace_back(p.x(), p.y());
             
             for(auto& h : polygon.holes) {
-                poly.Holes.emplace_back();
-                auto& hole = poly.Holes.back();
-                hole.reserve(h.points.size() + 1);
+                poly.holes.emplace_back();
+                auto& hole = poly.holes.back();
+                hole.points.reserve(h.points.size() + 1);
                 
                 if(needreverse)
                     for(auto it = h.points.rbegin(); it != h.points.rend(); ++it)
-                        hole.emplace_back(it->x(), it->y());
+                        hole.points.emplace_back(it->x(), it->y());
                 else
                     for(auto& p : h.points)
-                        hole.emplace_back(p.x(), p.y());
+                        hole.points.emplace_back(p.x(), p.y());
             }
             
             if(is_lefthanded) {
-                for(auto& p : poly.Contour) p.X = -p.X;
-                for(auto& h : poly.Holes) for(auto& p : h) p.X = -p.X;
+                for(auto& p : poly.contour) p.x() = -p.x();
+                for(auto& h : poly.holes) for(auto& p : h) p.x() = -p.x();
             }
             
-            sl::rotate(poly, double(instances[i].rotation));
-            sl::translate(poly, ClipperPoint{instances[i].shift.x(),
-                                             instances[i].shift.y()});
+            poly.rotate(double(instances[i].rotation));
+            poly.translate(Point{instances[i].shift.x(), instances[i].shift.y()});
             
             polygons.emplace_back(std::move(poly));
         }
@@ -653,9 +878,6 @@ void SLAPrint::Steps::merge_slices_and_eval_stats() {
     
     print_statistics.clear();
     
-    // libnest calculates positive area for clockwise polygons, Slic3r is in counter-clockwise
-    auto areafn = [](const ClipperPolygon& poly) { return - libnest2d::sl::area(poly); };
-    
     const double area_fill = printer_config.area_fill.getFloat()*0.01;// 0.5 (50%);
     const double fast_tilt = printer_config.fast_tilt_time.getFloat();// 5.0;
     const double slow_tilt = printer_config.slow_tilt_time.getFloat();// 8.0;
@@ -688,7 +910,7 @@ void SLAPrint::Steps::merge_slices_and_eval_stats() {
     // Going to parallel:
     auto printlayerfn = [this,
             // functions and read only vars
-            areafn, area_fill, display_area, exp_time, init_exp_time, fast_tilt, slow_tilt, delta_fade_time,
+            area_fill, display_area, exp_time, init_exp_time, fast_tilt, slow_tilt, delta_fade_time,
             
             // write vars
             &mutex, &models_volume, &supports_volume, &estim_time, &slow_layers,
@@ -706,8 +928,8 @@ void SLAPrint::Steps::merge_slices_and_eval_stats() {
         
         // Calculation of the consumed material
         
-        ClipperPolygons model_polygons;
-        ClipperPolygons supports_polygons;
+        ExPolygons model_polygons;
+        ExPolygons supports_polygons;
         
         size_t c = std::accumulate(layer.slices().begin(),
                                    layer.slices().end(),
@@ -729,44 +951,44 @@ void SLAPrint::Steps::merge_slices_and_eval_stats() {
         
         for(const SliceRecord& record : layer.slices()) {
             
-            ClipperPolygons modelslices = get_all_polygons(record, soModel);
-            for(ClipperPolygon& p_tmp : modelslices) model_polygons.emplace_back(std::move(p_tmp));
+            ExPolygons modelslices = get_all_polygons(record, soModel);
+            for(ExPolygon& p_tmp : modelslices) model_polygons.emplace_back(std::move(p_tmp));
         
-            ClipperPolygons supportslices = get_all_polygons(record, soSupport);
-            for(ClipperPolygon& p_tmp : supportslices) supports_polygons.emplace_back(std::move(p_tmp));
+            ExPolygons supportslices = get_all_polygons(record, soSupport);
+            for(ExPolygon& p_tmp : supportslices) supports_polygons.emplace_back(std::move(p_tmp));
         
         }
         
-        model_polygons = polyunion(model_polygons);
+        model_polygons = union_ex(model_polygons);
         double layer_model_area = 0;
-        for (const ClipperPolygon& polygon : model_polygons)
-            layer_model_area += areafn(polygon);
+        for (const ExPolygon& polygon : model_polygons)
+            layer_model_area += area(polygon);
         
         if (layer_model_area < 0 || layer_model_area > 0) {
             Lock lck(mutex); models_volume += layer_model_area * l_height;
         }
         
         if(!supports_polygons.empty()) {
-            if(model_polygons.empty()) supports_polygons = polyunion(supports_polygons);
-            else supports_polygons = polydiff(supports_polygons, model_polygons);
+            if(model_polygons.empty()) supports_polygons = union_ex(supports_polygons);
+            else supports_polygons = diff_ex(supports_polygons, model_polygons);
             // allegedly, union of subject is done withing the diff according to the pftPositive polyFillType
         }
         
         double layer_support_area = 0;
-        for (const ClipperPolygon& polygon : supports_polygons)
-            layer_support_area += areafn(polygon);
+        for (const ExPolygon& polygon : supports_polygons)
+            layer_support_area += area(polygon);
         
         if (layer_support_area < 0 || layer_support_area > 0) {
             Lock lck(mutex); supports_volume += layer_support_area * l_height;
         }
         
         // Here we can save the expensively calculated polygons for printing
-        ClipperPolygons trslices;
+        ExPolygons trslices;
         trslices.reserve(model_polygons.size() + supports_polygons.size());
-        for(ClipperPolygon& poly : model_polygons) trslices.emplace_back(std::move(poly));
-        for(ClipperPolygon& poly : supports_polygons) trslices.emplace_back(std::move(poly));
+        for(ExPolygon& poly : model_polygons) trslices.emplace_back(std::move(poly));
+        for(ExPolygon& poly : supports_polygons) trslices.emplace_back(std::move(poly));
         
-        layer.transformed_slices(polyunion(trslices));
+        layer.transformed_slices(union_ex(trslices));
         
         // Calculation of the slow and fast layers to the future controlling those values on FW
         
@@ -849,7 +1071,7 @@ void SLAPrint::Steps::rasterize()
         PrintLayer& printlayer = m_print->m_printer_input[idx];
         if(canceled()) return;
         
-        for (const ClipperLib::Polygon& poly : printlayer.transformed_slices())
+        for (const ExPolygon& poly : printlayer.transformed_slices())
             raster.draw(poly);
         
         // Status indication guarded with the spinlock
@@ -868,7 +1090,8 @@ void SLAPrint::Steps::rasterize()
     if(canceled()) return;
     
     // Print all the layers in parallel
-    m_print->m_printer->draw_layers(m_print->m_printer_input.size(), lvlfn);
+    m_print->m_printer->draw_layers(m_print->m_printer_input.size(), lvlfn,
+                                    [this]() { return canceled(); }, ex_tbb);
 }
 
 std::string SLAPrint::Steps::label(SLAPrintObjectStep step)
