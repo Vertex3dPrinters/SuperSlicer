@@ -165,7 +165,7 @@ public:
 	bool                get_show_overwrite_dialog() const { return get("show_overwrite_dialog") != "0"; }
 
 	// create color
-	uint32_t			create_color(float saturation, float value, EAppColorType color_template = EAppColorType::Main);
+	uint32_t			create_color(float saturation, float value, EAppColorType color_template = EAppColorType::Main, bool only_hue = false);
 	//utility color methods
 	static hsv			rgb2hsv(const rgb& in);
 	static rgb			hsv2rgb(const hsv& in);

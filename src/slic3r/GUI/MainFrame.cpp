@@ -2116,11 +2116,6 @@ void MainFrame::update_menubar()
         int id = m_menubar->FindMenu(m_calibration_menu->GetTitle());
         if (id != wxNOT_FOUND) {
             m_menubar->EnableTop(id, is_fff);
-
-    if (m_calibration_menu) {
-        int id = m_menubar->FindMenu(m_calibration_menu->GetTitle());
-        if (id != wxNOT_FOUND) {
-            m_menubar->EnableTop(id, is_fff);
         }
     }
 }
@@ -2921,18 +2916,18 @@ SettingsDialog::SettingsDialog(MainFrame* mainframe)
         auto key_up_handker = [this](wxKeyEvent& evt) {
             if ((evt.GetModifiers() & wxMOD_CONTROL) != 0) {
                 switch (evt.GetKeyCode()) {
-                case '1': { m_main_frame->select_tab(MainFrame::ETabType::Plater3D); break; }
-                case '2': { m_main_frame->select_tab(MainFrame::ETabType::PlaterPreview); break; }
-                case '3': { m_main_frame->select_tab(MainFrame::ETabType::PlaterGcode); break; }
-                case '4': { m_main_frame->select_tab(MainFrame::ETabType::PrintSettings); break; }
-                case '5': { m_main_frame->select_tab(MainFrame::ETabType::FilamentSettings); break; }
-                case '6': { m_main_frame->select_tab(MainFrame::ETabType::PrinterSettings); break; }
+                case '1': { this->m_main_frame->select_tab(MainFrame::ETabType::Plater3D); break; }
+                case '2': { this->m_main_frame->select_tab(MainFrame::ETabType::PlaterPreview); break; }
+                case '3': { this->m_main_frame->select_tab(MainFrame::ETabType::PlaterGcode); break; }
+                case '4': { this->m_main_frame->select_tab(MainFrame::ETabType::PrintSettings); break; }
+                case '5': { this->m_main_frame->select_tab(MainFrame::ETabType::FilamentSettings); break; }
+                case '6': { this->m_main_frame->select_tab(MainFrame::ETabType::PrinterSettings); break; }
 #ifdef __APPLE__
                 case 'f':
 #else /* __APPLE__ */
                 case WXK_CONTROL_F:
 #endif /* __APPLE__ */
-                case 'F': { m_main_frame->plater()->search(false); break; }
+                case 'F': { this->m_main_frame->plater()->search(false); break; }
                 default:break;
                 }
             }

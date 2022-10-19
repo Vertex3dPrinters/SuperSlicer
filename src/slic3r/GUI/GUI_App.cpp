@@ -256,7 +256,7 @@ public:
         if (!m_author.empty())
             credit_and_author += "\n\n" + m_author;
         int credits_height = memDc.GetMultiLineTextExtent(credit_and_author).GetY();
-        memDc.DrawText(credit_and_author, banner_rect.x, bmp.GetHeight() - credits_height - margin);
+        memDc.DrawText(credit_and_author, banner_rect.x, m_main_bitmap.GetHeight() - credits_height - margin);
         int text_height    = memDc.GetTextExtent("text").GetY();
 
         // calculate position for the dynamic text
@@ -1533,8 +1533,8 @@ void GUI_App::update_label_colours_from_appconfig()
         color_from_int(app_config->create_color(1.00f, 0.99f, AppConfig::EAppColorType::Highlight));
     m_color_hovered_btn = is_dark_mode ? color_from_int(app_config->create_color(0.84f, 0.99f, AppConfig::EAppColorType::Main)) :
         color_from_int(app_config->create_color(1.00f, 0.99f, AppConfig::EAppColorType::Main));
-    m_color_selected_btn_bg = is_dark_mode ? color_from_int(app_config->create_color(0.35f, 0.37f, AppConfig::EAppColorType::Main)) :
-        color_from_int(app_config->create_color(0.05f, 0.9f, AppConfig::EAppColorType::Main));
+    m_color_selected_btn_bg = is_dark_mode ? color_from_int(app_config->create_color(0.35f, 0.37f, AppConfig::EAppColorType::Main, true)) :
+        color_from_int(app_config->create_color(0.05f, 0.9f, AppConfig::EAppColorType::Main, true));
 #endif
 
     //also update imgui color cache... can be moved if you have a better placee it 

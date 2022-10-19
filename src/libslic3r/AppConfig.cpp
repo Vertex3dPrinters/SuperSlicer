@@ -197,7 +197,7 @@ uint32_t AppConfig::rgb2int(const AppConfig::rgb& rgb_color)
     return int_color;
 }
 
-uint32_t AppConfig::create_color(float saturation, float value, EAppColorType color_template)
+uint32_t AppConfig::create_color(float saturation, float value, EAppColorType color_template, bool only_hue)
 {
     std::string hex_str;
     switch (color_template) {
@@ -220,8 +220,8 @@ uint32_t AppConfig::create_color(float saturation, float value, EAppColorType co
     //modify h& v
     //saturation & value higher than 0.8will increase the sat/value
     // values lower will decrease it
-    hsv_color.s = std::min(1., hsv_color.s * 1.25 * saturation);
-    hsv_color.v = std::min(1., hsv_color.v * 1.25 * value);
+    hsv_color.s = std::min(1., only_hue ? saturation : (hsv_color.s * 1.25 * saturation));
+    hsv_color.v = std::min(1., only_hue ? value : (hsv_color.v * 1.25 * value));
 
     rgb_color = hsv2rgb(hsv_color);
     
