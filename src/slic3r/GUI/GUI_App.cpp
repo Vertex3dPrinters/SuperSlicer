@@ -147,7 +147,7 @@ public:
         m_action_font = m_constant_text.credits_font.Bold();
 
         // draw logo and constant info text
-        Decorate();
+        Decorate(m_main_bitmap);
     }
 
     void SetText(const wxString& text)
@@ -160,8 +160,7 @@ public:
             memDC.SelectObject(bitmap);
 
             memDC.SetFont(m_action_font);
-            ///            memDC.SetTextForeground(wxColour(237, 107, 33)); // ed6b21
-            uint32_t color = Slic3r::GUI::wxGetApp().app_config->create_color(0.86f, 0.93f);
+            uint32_t color = color_from_hex(Slic3r::GUI::wxGetApp().app_config->get("color_very_dark"));
             memDC.SetTextForeground(wxColour(color & 0xFF, (color & 0xFF00) >> 8, (color & 0xFF0000) >> 16));
             memDC.DrawText(text, int(m_scale * 60), m_action_line_y_position);
 
@@ -201,28 +200,30 @@ public:
         return new_bmp;
     }
 
-    void Decorate()
+    void Decorate(wxBitmap& bmp)
     {
-        if (!m_main_bitmap.IsOk())
+        if (!bmp.IsOk())
             return;
 
         // draw text to the box at the left of the splashscreen.
         // this box will be 2/5 of the weight of the bitmap, and be at the left.
-        int width = lround(m_main_bitmap.GetWidth() * 0.4);
+        int width = lround(bmp.GetWidth() * 0.4);
 
         // load bitmap for logo
         BitmapCache bmp_cache;
         int logo_size = lround(width * 0.25);
-        wxBitmap* logo_bmp = bmp_cache.load_svg(wxGetApp().logo_name(), logo_size, logo_size);
+        //uint32_t color = color_from_hex(Slic3r::GUI::wxGetApp().app_config->get("color_dark")); //uncomment if you also want to modify the icon color
+        wxBitmap* logo_bmp = bmp_cache.load_svg(wxGetApp().is_editor() ? SLIC3R_APP_KEY "_logo" : "add_gcode", logo_size, logo_size/*, color*/);
+        if(logo_bmp == nullptr) logo_bmp = bmp_cache.load_png(wxGetApp().is_editor() ? SLIC3R_APP_KEY "_logo" : "add_gcode", logo_size, logo_size/*, color*/);
         if (logo_bmp == nullptr) return;
 
         wxCoord margin = int(m_scale * 20);
 
-        wxRect banner_rect(wxPoint(0, logo_size), wxPoint(width, m_main_bitmap.GetHeight()));
+        wxRect banner_rect(wxPoint(0, logo_size), wxPoint(width, bmp.GetHeight()));
         banner_rect.Deflate(margin, 2 * margin);
 
         // use a memory DC to draw directly onto the bitmap
-        wxMemoryDC memDc(m_main_bitmap);
+        wxMemoryDC memDc(bmp);
 
         // draw logo
         memDc.DrawBitmap(*logo_bmp, margin, margin, true);
@@ -256,12 +257,12 @@ public:
         if (!m_author.empty())
             credit_and_author += "\n\n" + m_author;
         int credits_height = memDc.GetMultiLineTextExtent(credit_and_author).GetY();
-        memDc.DrawText(credit_and_author, banner_rect.x, m_main_bitmap.GetHeight() - credits_height - margin);
+        memDc.DrawText(credit_and_author, banner_rect.x, bmp.GetHeight() - credits_height - margin);
         int text_height    = memDc.GetTextExtent("text").GetY();
 
         // calculate position for the dynamic text
         int logo_and_header_height = margin + logo_size + title_height + version_height + vertexExtents.GetY();
-        m_action_line_y_position = (m_main_bitmap.GetHeight() + logo_and_header_height - credits_height - text_height) / 2;
+        m_action_line_y_position = (bmp.GetHeight() + logo_and_header_height - credits_height - text_height) / 2;
     }
 
 private:
@@ -1189,18 +1190,16 @@ bool GUI_App::on_init_inner()
         wxBitmap bmp;
         std::string file_name = app_config->splashscreen(is_editor());
         wxString artist;
-        if (!file_name.empty()) {
-            boost::filesystem::path splash_screen_path = (boost::filesystem::path(Slic3r::resources_dir()) / "splashscreen" / file_name);
-            if (boost::filesystem::exists(splash_screen_path)) {
-                wxString path_str = wxString::FromUTF8((splash_screen_path).string().c_str());
+        if (!file_name.empty() && file_name != (std::string(SLIC3R_APP_NAME) + L(" icon"))) {
+            wxString splash_screen_path = wxString::FromUTF8((boost::filesystem::path(Slic3r::resources_dir()) / "splashscreen" / file_name).string().c_str());
         // make a bitmap with dark grey banner on the left side
-                bmp = SplashScreen::MakeBitmap(wxBitmap(path_str, wxBITMAP_TYPE_JPEG));
+            bmp = SplashScreen::MakeBitmap(wxBitmap(splash_screen_path, wxBITMAP_TYPE_JPEG));
 
-                //get the artist name from metadata
+
             int result;
             void** ifdArray = nullptr;
             ExifTagNodeInfo* tag;
-                ifdArray = exif_createIfdTableArray(path_str.c_str(), &result);
+            ifdArray = exif_createIfdTableArray(splash_screen_path.c_str(), &result);
             if (result > 0 && ifdArray) {
                 tag = exif_getTagInfo(ifdArray, IFD_0TH, TAG_Artist);
                 if (tag) {
@@ -1210,32 +1209,19 @@ bool GUI_App::on_init_inner()
                 }
             }
         }
-        }
 
         // Detect position (display) to show the splash screen
         // Now this position is equal to the mainframe position
         wxPoint splashscreen_pos = wxDefaultPosition;
-        bool default_splashscreen_pos = true;
-        if (app_config->has("window_mainframe") && app_config->get("restore_win_position") == "1") {
+        if (app_config->has("window_mainframe")) {
             auto metrics = WindowMetrics::deserialize(app_config->get("window_mainframe"));
-            default_splashscreen_pos = metrics == boost::none;
-            if (!default_splashscreen_pos)
+            if (metrics)
                 splashscreen_pos = metrics->get_rect().GetPosition();
         }
 
-        if (!default_splashscreen_pos) {
-            // workaround for crash related to the positioning of the window on secondary monitor
-            get_app_config()->set("restore_win_position", "crashed_at_splashscreen_pos");
-            get_app_config()->save();
-        }
-
-        // make a bitmap with dark grey banner on the left side
-        scrn = new SplashScreen(bmp.IsOk() ? bmp : SplashScreen::MakeBitmap(create_scaled_bitmap(SLIC3R_APP_KEY, nullptr, 600)),
+        // create splash screen with updated bmp
+        scrn = new SplashScreen(bmp.IsOk() ? bmp : create_scaled_bitmap( SLIC3R_APP_KEY "_logo", nullptr, 400), 
                                 wxSPLASH_CENTRE_ON_SCREEN | wxSPLASH_TIMEOUT, 4000, splashscreen_pos, artist);
-
-            if (!default_splashscreen_pos)
-                // revert "restore_win_position" value if application wasn't crashed
-                get_app_config()->set("restore_win_position", "1");
 #ifndef __linux__
         wxYield();
 #endif
@@ -1460,12 +1446,12 @@ bool GUI_App::dark_mode()
 
 const wxColour GUI_App::get_label_default_clr_system()
 {
-    return dark_mode() ? wxColour(115, 220, 103) : wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);//wxColour(26, 132, 57);
+    return dark_mode() ? wxColour(115, 220, 103) : wxColour(26, 132, 57);
 }
 
 const wxColour GUI_App::get_label_default_clr_modified()
 {
-    return dark_mode() ? wxColour(253, 111, 40) : wxColour(85, 204, 0);//wxColour(252, 77, 1);
+    return dark_mode() ? wxColour(253, 111, 40) : wxColour(252, 77, 1);
 }
 
 const wxColour GUI_App::get_label_default_clr_default()
@@ -2630,7 +2616,7 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
                 // the dialog needs to be destroyed before the call to switch_language()
                 // or sometimes the application crashes into wxDialogBase() destructor
                 // so we put it into an inner scope
-                wxString title = is_editor() ? "SuperSlicer"/*wxString(SLIC3R_APP_NAME)*/ : wxString(GCODEVIEWER_APP_NAME);
+                wxString title = is_editor() ? wxString(SLIC3R_APP_NAME) : wxString(GCODEVIEWER_APP_NAME);
                 title += " - " + _L("Language selection");
                 //wxMessageDialog dialog(nullptr,
                 MessageDialog dialog(nullptr,
