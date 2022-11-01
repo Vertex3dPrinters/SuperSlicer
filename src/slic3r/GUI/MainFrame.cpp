@@ -635,8 +635,9 @@ void MainFrame::update_layout()
 #endif
         m_tabpanel->InsertPage(0, m_plater, _L("Platter"));
 #ifdef _USE_CUSTOM_NOTEBOOK
-        if (!wxGetApp().tabs_as_menu())
-            dynamic_cast<Notebook*>(m_tabpanel)->GetBtnsListCtrl()->InsertSpacer(1, 40);
+        //separation between the plater and the setting tabs
+        //if (!wxGetApp().tabs_as_menu())
+        //    dynamic_cast<Notebook*>(m_tabpanel)->GetBtnsListCtrl()->InsertSpacer(1, 40);
 #endif
         m_main_sizer->Add(m_tabpanel, 1, wxEXPAND | wxTOP, 1);
         update_icon();
@@ -910,19 +911,19 @@ void MainFrame::change_tab(Tab* old_tab, Tab* new_tab)
         catch (std::exception e) {}
 
         Notebook* notebook = dynamic_cast<Notebook*>(m_tabpanel);
-    int page_id = m_tabpanel->FindPage(old_tab);
+        int page_id = m_tabpanel->FindPage(old_tab);
         int bt_id = notebook->FindFirstBtPage(old_tab);
-    if (page_id >= 0 && page_id < m_tabpanel->GetPageCount()) {
-        m_tabpanel->GetPage(page_id)->Show(false);
+        if (page_id >= 0 && page_id < m_tabpanel->GetPageCount()) {
+            m_tabpanel->GetPage(page_id)->Show(false);
             bool has_spacer = notebook->GetBtnsListCtrl()->HasSpacer(bt_id);
-        m_tabpanel->RemovePage(page_id);
+            m_tabpanel->RemovePage(page_id);
             notebook->InsertBtPage(bt_id, new_tab, new_tab->title(), new_tab->icon_name(icon_size, new_tab->get_printer_technology()), icon_size, false);
             if(has_spacer)
                 notebook->GetBtnsListCtrl()->InsertSpacer(bt_id, 40);
 #ifdef __linux__ // the tabs apparently need to be explicitly shown on Linux (pull request #1563)
             m_tabpanel->GetPage(page_id)->Show(true);
 #endif // __linux__
-    }
+        }
     }
     else
 #endif
@@ -931,12 +932,12 @@ void MainFrame::change_tab(Tab* old_tab, Tab* new_tab)
         if (page_id >= 0 && page_id < m_tabpanel->GetPageCount()) {
             m_tabpanel->GetPage(page_id)->Show(false);
             m_tabpanel->RemovePage(page_id);
-    m_tabpanel->InsertPage(page_id, new_tab, new_tab->title());
+            m_tabpanel->InsertPage(page_id, new_tab, new_tab->title());
     #ifdef __linux__ // the tabs apparently need to be explicitly shown on Linux (pull request #1563)
-        m_tabpanel->GetPage(page_id)->Show(true);
+            m_tabpanel->GetPage(page_id)->Show(true);
     #endif // __linux__
-    MainFrame::update_icon();
-}
+            MainFrame::update_icon();
+        }
     }
 }
 
